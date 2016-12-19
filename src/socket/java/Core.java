@@ -2,12 +2,15 @@ package socket.java;
 
 import socket.java.utils.StringUtils;
 
+import java.io.DataInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 public class Core {
 
@@ -20,6 +23,9 @@ public class Core {
 
     public static final ExecutorService SOCKET_HEARTBEAT_SERVICE = Executors.newCachedThreadPool();
 
+    //默认心跳时长
+    private static final long TIME_LENGTH_FOR_HEARTBEAT = TimeUnit.MINUTES.toMillis(1);
+
     private String _host;
     private int _port;
 
@@ -27,6 +33,8 @@ public class Core {
     private static Core instance;
     private NotifyCallback _notifyCallback = NotifyCallback.DEFAULT_NOTIFY_CALLBACK;
     private ConnectCallback _connectCallback = ConnectCallback.DEFAULT_CONNECT_CALLBACK;
+    private boolean exitFlag = false;
+    private Socket _socket;
 
     private Core() {
     }
@@ -68,18 +76,60 @@ public class Core {
             @Override
             public void run() {
                 try {
-                    Socket socket = new Socket();
-                    socket.connect(new InetSocketAddress(_host, _port), Config.connection_timeout);
-                    socket.setKeepAlive(true);
+                    _socket = new Socket();
+                    _socket.connect(new InetSocketAddress(_host, _port), Config.connection_timeout);
+                    _socket.setKeepAlive(true);
                 } catch (IOException e) {
                     Log.e(e.getLocalizedMessage());
                     _connectCallback.onError(e.getLocalizedMessage());
                     return;
                 }
-                //TODO 链接成功
+                //TODO 连接成功
                 Log.e("connect success !!!");
+                INPUT_SERVCIE.execute(inputRunnable);
             }
         };
         SOCKET_HEARTBEAT_SERVICE.execute(runnable);
+        startHeartbeat();
     }
+
+
+    private void startHeartbeat() {
+        do {
+            addHeartbeatMessage();
+            try {
+                Thread.sleep(TIME_LENGTH_FOR_HEARTBEAT);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        } while (!exitFlag);
+    }
+
+    private void addHeartbeatMessage() {
+        SOCKET_HEARTBEAT_SERVICE.execute(new Runnable() {
+            @Override
+            public void run() {
+                Log.i("addHeartbeatMessage()");
+            }
+        });
+    }
+
+    //接收数据的Runnable
+    private Runnable inputRunnable = new Runnable() {
+        @Override
+        public void run() {
+            try {
+                InputStream inputStream = _socket.getInputStream();
+                DataInputStream dis = new DataInputStream(inputStream);
+                while (!exitFlag) {
+                    Log.i("start wait for inputStream ");
+                    String s = dis.readUTF();
+                    Log.i(s);
+                }
+
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+    };
 }

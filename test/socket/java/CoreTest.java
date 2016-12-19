@@ -1,23 +1,13 @@
 package socket.java;
 
-import org.junit.Test;
-
-import static org.junit.Assert.*;
-
 /**
  * Created by jingbin on 2016/12/19.
  */
 public class CoreTest {
-    @org.junit.Before
-    public void setUp() throws Exception {
 
-    }
-
-
-    @Test
-    public void testCore() throws InterruptedException {
+    public static void testCore() throws InterruptedException {
         Core instance = Core.getInstance();
-        instance.setConnectPara("", 0, new ConnectCallback() {
+        instance.setConnectPara("app.test.11deyi.com", 10002, new ConnectCallback() {
             @Override
             protected void onSuccess() {
             }
@@ -31,12 +21,12 @@ public class CoreTest {
         Thread.sleep(10000);
     }
 
-
-
-
-    @org.junit.After
-    public void tearDown() throws Exception {
-
+    public static void main(String[] args) {
+        try {
+            testCore();
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
     }
 
 }
