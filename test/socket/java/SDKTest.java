@@ -1,5 +1,11 @@
 package socket.java;
 
+import jdk.nashorn.api.scripting.JSObject;
+import socket.java.callback.ConnectCallback;
+import socket.java.callback.RequestCallback;
+
+import java.io.*;
+import java.nio.charset.Charset;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -12,26 +18,19 @@ public class SDKTest {
         final Core instance = Core.getInstance();
         instance.setConnectPara("app.test.11deyi.com", 10002, new ConnectCallback() {
             @Override
-            protected void onSuccess() {
-                Map<String, String> header = new HashMap<>();
-                header.put("api", "/api/php/Info");
-                instance.addRequest("{\"title\":\"test\"}".getBytes(), header, new RequestCallback() {
-
-                    @Override
-                    protected void onSuccess(byte[] data) {
-                        String s = new String(data);
-                        System.out.print(s);
-                    }
-
-                    @Override
-                    public void onFailed(String err) {
-                        System.out.print(err);
-                    }
-                });
+            public void onSuccess() {
+                sendRequest(instance, "000000");
+                try {
+                    BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
+                    String send = br.readLine();
+                    sendRequest(instance, send);
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
             }
 
             @Override
-            protected void onError(String err) {
+            public void onError(String err) {
 
             }
         });
@@ -46,6 +45,25 @@ public class SDKTest {
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
+    }
+
+    private static void sendRequest(Core client, String content) {
+        Map<String, String> headers = new HashMap<>();
+        headers.put("api", "/api/php/info");
+        client.addRequest((content).getBytes(Charset.forName("UTF-8")), headers, new RequestCallback() {
+            @Override
+            public void onSuccess(byte[] data) {
+                System.out.println("onSuccess---" + new String(data));
+            }
+
+            public void onFailed(String error) {
+                System.out.println("request failed---" + error);
+            }
+
+            public void onComplete() {
+                System.out.println("request <null, long header> complete");
+            }
+        });
     }
 
 }

@@ -1,4 +1,4 @@
-package socket.java;
+package socket.java.utils;
 
 import java.io.UnsupportedEncodingException;
 import java.util.Map;

@@ -1,6 +1,11 @@
 package socket.java;
 
+import socket.java.callback.ConnectCallback;
+import socket.java.callback.NotifyCallback;
+import socket.java.callback.RequestCallback;
+import socket.java.utils.RequestBuilder;
 import socket.java.utils.StringUtils;
+import utils.Log;
 
 import java.io.*;
 import java.net.InetSocketAddress;
@@ -25,14 +30,33 @@ public class Core {
     //默认心跳时长
     private static final long TIME_LENGTH_FOR_HEARTBEAT = TimeUnit.MINUTES.toMillis(1);
 
+    static ConnectCallback DEFAULT_CONNECT_CALLBACK = new ConnectCallback() {
+        @Override
+        public void onSuccess() {
+
+        }
+
+        @Override
+        public void onError(String err) {
+
+        }
+    };
+
+    static final NotifyCallback DEFAULT_NOTIFY_CALLBACK = new NotifyCallback() {
+        @Override
+        protected void onNotify(byte[] notify) {
+
+        }
+    };
+
     private List<byte[]> data = new ArrayList<byte[]>();
     private String _host;
     private int _port;
 
 
     private static Core instance;
-    private NotifyCallback _notifyCallback = NotifyCallback.DEFAULT_NOTIFY_CALLBACK;
-    private ConnectCallback _connectCallback = ConnectCallback.DEFAULT_CONNECT_CALLBACK;
+    private NotifyCallback _notifyCallback = DEFAULT_NOTIFY_CALLBACK;
+    private ConnectCallback _connectCallback = DEFAULT_CONNECT_CALLBACK;
     private boolean exitFlag = false;
     private Socket _socket;
     private long reqID_;
@@ -55,7 +79,7 @@ public class Core {
         this._host = host;
         this._port = port;
         if (connectCallback == null) {
-            this._connectCallback = ConnectCallback.DEFAULT_CONNECT_CALLBACK;
+            this._connectCallback = DEFAULT_CONNECT_CALLBACK;
             return;
         }
         this._connectCallback = connectCallback;
@@ -64,7 +88,7 @@ public class Core {
 
     public void setNotifyCallback(NotifyCallback callback) {
         if (callback == null) {
-            this._notifyCallback = NotifyCallback.DEFAULT_NOTIFY_CALLBACK;
+            this._notifyCallback = DEFAULT_NOTIFY_CALLBACK;
             return;
         }
         this._notifyCallback = callback;
@@ -88,13 +112,31 @@ public class Core {
                 }
                 //TODO 连接成功
                 Log.e("connect success !!!");
-                INPUT_SERVICE.execute(inputRunnable);
-                OUTPUT_SERVICE.execute(outputRunnable);
+                onOpen();
                 _connectCallback.onSuccess();
             }
         };
         SOCKET_SERVICE.execute(runnable);
         startHeartbeat();
+    }
+
+    private void onOpen() {
+        sendHandShake();
+        OUTPUT_SERVICE.execute(outputRunnable);
+        INPUT_SERVICE.execute(inputRunnable);
+    }
+
+    private void sendHandShake() {
+        byte[] handshake = new byte[6];
+        handshake[5] = (byte) 0xff;
+        for (int i = 0; i < 5; ++i) {
+            handshake[5] ^= (byte)handshake[i];
+        }
+
+        synchronized (data) {
+            data.add(handshake);
+            data.notify();
+        }
     }
 
 
@@ -141,10 +183,10 @@ public class Core {
                     while (length - pos != 0) {
                         int n = inputStream.read(data, pos, (int) length - pos);
                         if (n < 0) {
-                            return;
+                            continue;
                         }
                         if (n == 0) {
-                            return;
+                            continue;
                         }
                         pos += n;
                     }
@@ -196,7 +238,7 @@ public class Core {
         while (4 - pos != 0) {
             int n = inputStream.read(lengthB, pos, 4 - pos);
             if (n <= 0) {
-                return -1;
+                continue;
             }
             pos += n;
         }
@@ -267,7 +309,7 @@ public class Core {
                 byte[] content = RequestBuilder.build(body, header, reqID);
                 //------构建任务长度信息先发送给服务器 start--------
                 byte[] len = new byte[4];
-                int length = content.length + 4;
+                int length= content.length + 4;
                 len[0] = (byte) ((length & 0xff000000) >> 24);
                 len[1] = (byte) ((length & 0xff0000) >> 16);
                 len[2] = (byte) ((length & 0xff00) >> 8);
